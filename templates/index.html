@@ -1,0 +1,125 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>labchat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, Arial; margin: 0; background:#000000; color:#f31515; }
+    .wrap { max-width: 800px; margin: 0 auto; padding: 16px; }
+    .card { background:#000000; border:1px solid rgb(221, 44, 38); border-radius:12px; padding: 14px; }
+    #log { height: 55vh; overflow:auto; border-radius:10px; padding: 10px; background:#000000; border:1px solid rgb(209, 14, 14); }
+    .msg { margin: 8px 0; }
+    .meta { font-size: 12px; opacity: .75; margin-bottom: 2px; }
+    .text { font-size: 15px; white-space: pre-wrap; word-break: break-word; }
+    .row { display:flex; gap: 10px; margin-top: 10px; }
+    input, button { border-radius:10px; border:1px solid rgb(223, 21, 21); background:#000000; color:#eb1919; padding: 10px; }
+    input { flex: 1; }
+    button { cursor:pointer; }
+    button:hover { filter: brightness(1.1); }
+    .top { display:flex; gap:10px; margin-bottom: 10px; }
+    .pill { padding:6px 10px; border:1px solid rgb(238, 27, 27); border-radius:999px; font-size:12px; opacity:.85; }
+    .text a {
+      color : #070ee9;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    .text a:visited {
+      color: purple;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="pill">Room: <span id="roomLabel"></span></div>
+      <div class="pill">You: <span id="nameLabel"></span></div>
+    </div>
+
+    <div class="card">
+      <div id="log"></div>
+      <div class="row">
+        <input id="msg" placeholder="Type a message…" autocomplete="off" />
+        <button id="send">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script>
+
+    const params = new URLSearchParams(location.search);
+
+    const room = params.get("room") || "default";
+
+    let name = params.get("name");
+    if (!name) {
+      name = prompt("Name for chat:", "User") || "User";
+    }
+
+    document.getElementById("roomLabel").textContent = room;
+    document.getElementById("nameLabel").textContent = name;
+
+    const socket = io({ transports: ["websocket"] });
+
+    const log = document.getElementById("log");
+    const msg = document.getElementById("msg");
+    const btn = document.getElementById("send");
+
+
+    // Make links clickable --> Normally, a security risk but i'll allow it since this should not be for public use. 
+    function linkify(text) {
+        const urlRegex = /https?:\/\/[^\s<]+/g;
+  	    return text.replace(urlRegex, (url) =>
+    		`<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
+  	    );
+    }
+
+
+
+    function addMessage({name, text, ts}) {
+
+      // Dont append the body of the message twice. 
+      
+      const log = document.getElementById("log");
+  
+      const d = document.createElement("div");
+      d.className = "msg";
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = `${new Date(ts).toLocaleTimeString()} — ${name}`;
+
+      const body = document.createElement("div");
+      body.className = "text";
+      body.innerHTML = linkify(text);
+  
+      d.appendChild(meta);
+      d.appendChild(body);
+
+      log.appendChild(d);
+      log.scrollTop = log.scrollHeight;
+      // this is so much better 
+    }
+
+    socket.on("connect", () => {
+      socket.emit("join", { room, name });
+    });
+
+    socket.on("chat", (payload) => addMessage(payload));
+
+    function send() {
+      const text = msg.value.trim();
+      if (!text) return;
+      socket.emit("chat", { room, name, text });
+      msg.value = "";
+      msg.focus();
+    }
+
+    btn.onclick = send;
+    msg.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") send();
+    });
+  </script>
+</body>
+</html>
